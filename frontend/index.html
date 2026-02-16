@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ta">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>கால்நடை மருத்துவ AI உதவியாளர் - Veterinary AI Assistant Agent</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>கால்நடை மருத்துவ AI உதவியாளர்</h1>
+        <h2 style="text-align: center; color: #555;">(Veterinary AI Assistant Agent)</h2>
+        <h2 style="margin-top: 20px;">விலங்கைத் தேர்ந்தெடுக்கவும் (Select Animal)</h2>
+        <div class="animal-grid">
+            <div class="card" onclick="selectAnimal('Cow')">
+                <div class="icon">🐄</div>
+                <h3>பசு (Cow)</h3>
+            </div>
+            <div class="card" onclick="selectAnimal('Buffalo')">
+                <div class="icon">🐃</div>
+                <h3>எருமை (Buffalo)</h3>
+            </div>
+            <div class="card" onclick="selectAnimal('Goat')">
+                <div class="icon">🐐</div>
+                <h3>ஆடு (Goat)</h3>
+            </div>
+            <div class="card" onclick="selectAnimal('Chicken')">
+                <div class="icon">🐓</div>
+                <h3>கோழி (Chicken)</h3>
+            </div>
+            <div class="card" onclick="selectAnimal('Dog')">
+                <div class="icon">🐕</div>
+                <h3>நாய் (Dog)</h3>
+            </div>
+            <div class="card" onclick="selectAnimal('Cat')">
+                <div class="icon">🐈</div>
+                <h3>பூனை (Cat)</h3>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,11 @@
+animal,breed,age_group,symptoms,disease,recovery_days,remedy,vet_required,Remedy1,Remedy2,Remedy3,Symptom1,Symptom2,Symptom3
+Cow,Jersey,Adult,fever,Foot and Mouth Disease,15,Isolation and vaccination,Yes,Separate the infected animal,Wash mouth with KmnO4,Give soft food,fever,blisters,lameness
+Cow,Holstein,Adult,loose motion,Diarrhea,5,Oral rehydration,No,Give electrolyte solution,Avoid milk,Clean water,loose motion,weakness,dehydration
+Buffalo,Murrah,Adult,fever,Mastitis,10,Antibiotics,Yes,Consult vet immediately,Clean udder with warm water,Milk frequently,swelling,pain,fever
+Goat,Boer,Adult,cough,PPR,20,Vaccination,Yes,Isolate goat,Provide warm shelter,Give nutritious food,cough,nasal discharge,fever
+Chicken,Leghorn,Adult,drowsiness,Newcastle Disease,7,Vaccination,Yes,Isolate bird,Clean coop,Provide vitamins,drowsiness,paralysis,twisted neck
+Dog,Labrador,Puppy,vomiting,Parvovirus,14,Supportive care,Yes,Intravenous fluids,Antibiotics,Anti-emetics,vomiting,bloody diarrhea,lethargy
+Cat,Persian,Adult,scratching,Ear Mites,7,Ear drops,No,Clean ears,Apply anti-mite drops,Check other pets,scratching,head shaking,dark wax
+Cow,Jersey,Adult,milk drop,Mastitis,7,Antibiotics,Yes,Clean udder,Milk completely,Consult vet,milk drop,swelling,pain
+Goat,Desi,Adult,bloating,Bloat,2,Oil drench,No,Give vegetable oil,Massage stomach,Walk the animal,bloating,pain,difficulty breathing
+Dog,German Shepherd,Adult,itching,Skin Infection,10,Medicated bath,No,Bath with medicated shampoo,Apply ointment,Keep dry,itching,redness,hair loss
