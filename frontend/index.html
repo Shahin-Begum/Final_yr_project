@@ -12,11 +12,18 @@
     <div class="container">
         <h1>கால்நடை மருத்துவ AI உதவியாளர்</h1>
         <h2 style="text-align: center; color: #555;">(Veterinary AI Assistant Agent)</h2>
-        <h2 style="margin-top: 20px;">விலங்கைத் தேர்ந்தெடுக்கவும் (Select Animal)</h2>
+
+        <div class="audio-instruction" style="text-align: center; margin-bottom: 20px;">
+            <button onclick="playWelcomeAudio()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">🔊
+                வழிமுறையைக் கேள் (Listen to Instructions)</button>
+            <audio id="welcome-audio" src="/audio/prompts/welcome_select_animal.mp3" autoplay></audio>
+        </div>
+
+        <h2 style="margin-top: 20px;">உங்கள் விலங்கைத் தேர்ந்தெடுக்கவும் (Choose your animal)</h2>
         <div class="animal-grid">
-            <div class="card" onclick="selectAnimal('Cow')">
+            <div class="card" onclick="selectAnimal('Cattle')">
                 <div class="icon">🐄</div>
-                <h3>பசு (Cow)</h3>
+                <h3>பசு / மாடு (Cattle)</h3>
             </div>
             <div class="card" onclick="selectAnimal('Buffalo')">
                 <div class="icon">🐃</div>
@@ -26,9 +33,9 @@
                 <div class="icon">🐐</div>
                 <h3>ஆடு (Goat)</h3>
             </div>
-            <div class="card" onclick="selectAnimal('Chicken')">
+            <div class="card" onclick="selectAnimal('Poultry')">
                 <div class="icon">🐓</div>
-                <h3>கோழி (Chicken)</h3>
+                <h3>கோழி (Poultry)</h3>
             </div>
             <div class="card" onclick="selectAnimal('Dog')">
                 <div class="icon">🐕</div>
@@ -41,6 +48,30 @@
         </div>
     </div>
     <script src="app.js"></script>
+    <script>
+        function playWelcomeAudio() {
+            var audio = document.getElementById("welcome-audio");
+            // Attempt to play audio
+            var playPromise = audio.play();
+
+            if (playPromise !== undefined) {
+                playPromise.then(_ => {
+                    // Automatic playback started!
+                    console.log("Audio playing automatically");
+                })
+                    .catch(error => {
+                        // Auto-play was prevented
+                        console.log("Auto-play prevented. User interaction required.");
+                        // Optional: Show a "Click to Start" overlay or button highlight here
+                    });
+            }
+        }
+
+        // Auto-play on load
+        window.onload = function () {
+            playWelcomeAudio();
+        };
+    </script>
 </body>
 
 </html>

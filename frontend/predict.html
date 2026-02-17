@@ -4,50 +4,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>கால்நடை மருத்துவ AI உதவியாளர் - Prediction</title>
-    <link rel="stylesheet" href="style.css">
+    <title>AI Veterinary Diagnosis</title>
+    <link rel="stylesheet" href="style.css?v=10">
 </head>
 
 <body>
-    <div class="container prediction-container">
-        <h1 id="animal-heading">Selected Animal: </h1>
+    <div class="container">
+        <!-- Header -->
+        <h1 id="welcome-text">வணக்கம் (Welcome)</h1>
 
-        <div class="instruction-box">
-            <p id="instruction-text">உங்கள் விலங்கின் இனம், வயது மற்றும் காணப்படும் அறிகுறிகளை தெளிவாக சொல்லுங்கள்.
-                முடிந்ததும் நிறுத்து பொத்தானை அழுத்துங்கள்.</p>
-            <button class="speak-instruction-btn" onclick="speakInstruction()">🔊 வழிமுறையைக் கேள் (Listen)</button>
+        <!-- Conversation Area -->
+        <div id="chat-box" class="chat-box" style="display: none;">
+            <!-- Messages will appear here -->
         </div>
 
-        <div class="controls">
-            <button id="start-btn" onclick="startRecording()">🎤 Start (தொடங்கு)</button>
-            <button id="stop-btn" onclick="stopRecording()" disabled>■ Stop (நிறுத்து)</button>
+        <!-- Start Button -->
+        <div id="start-section" style="margin-top: 50px;">
+            <button id="start-btn" onclick="startConversation()">தொடங்கு (Start)</button>
         </div>
 
+        <!-- Interaction Area (Hidden initially) -->
+        <div id="controls" class="controls" style="display: none;">
+            <button id="mic-btn" style="display:none;">🎤 பேசு (Speak)</button>
+            <!-- Hidden but kept for ref if needed -->
+            <button id="stop-btn" onclick="stopConversation()" style="background-color: #d32f2f; color: white;">நிறுத்து
+                (Stop)</button>
+        </div>
+
+        <!-- Status / Instruction -->
         <div class="status-box">
-            <p id="status">பேசத் தயாராக உள்ளது (Ready to record)...</p>
-            <div id="recognized-text" class="output-text"></div>
+            <p id="status">தயார் நிலையில்... (Ready...)</p>
         </div>
 
+        <!-- Result Area (Hidden initially) -->
         <div id="result-box" class="result-box" style="display: none;">
-            <h2>முடிவு (Result)</h2>
+            <h2>கணிப்பு முடிவு (Diagnosis Result)</h2>
             <div id="result-content"></div>
-            <audio id="result-audio" controls style="display: none; width: 100%; margin-top: 10px;"></audio>
+            <button class="back-btn" onclick="window.location.href='index.html'">முகப்பு பக்கம் (Back to Home)</button>
+            <audio id="response-audio" controls style="display: none; margin-top: 10px; width: 100%;"></audio>
         </div>
 
-        <button onclick="window.location.href='index.html'" class="back-btn">பின்னால் செல் (Back)</button>
+        <!-- Hidden Audio Players for Prompts -->
+        <audio id="audio-welcome" src=""></audio> <!-- Dynamic -->
+        <audio id="audio-prompt" src=""></audio> <!-- Generic for questions -->
+        <audio id="audio-processing" src="/audio/prompts/processing.mp3"></audio>
     </div>
-    <script src="app.js"></script>
-    <script>
-        // Initialize page specific logic
-        document.addEventListener('DOMContentLoaded', () => {
-            const animal = localStorage.getItem('selectedAnimal');
-            if (!animal) {
-                window.location.href = 'index.html';
-                return;
-            }
-            document.getElementById('animal-heading').innerText = `Selected Animal: ${animal}`;
-        });
-    </script>
+
+    <script src="app.js?v=10"></script>
 </body>
 
 </html>

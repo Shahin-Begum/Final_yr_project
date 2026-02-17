@@ -6,11 +6,14 @@ import pandas as pd
 from gtts import gTTS
 import os
 import uuid
-import whisper
 import shutil
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning, module='whisper')
-import difflib
+import speech_recognition as sr
+import sys
+import io
+
+# Force UTF-8 for Windows Console
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 app = FastAPI()
 
@@ -28,11 +31,31 @@ try:
     current_dir = os.path.dirname(os.path.abspath(__file__))
     dataset_path = os.path.join(current_dir, "dataset.csv")
     df = pd.read_csv(dataset_path)
-    # Normalize dataset columns for easier matching
+    # Normalize dataset columns to match code expectations
+    # CSV has: animal_type, breed, age, gender, disease, core_symptom, symptom_1, symptom_2, symptom_3, medicine, recovery_days, vet_required
+    
+    df.rename(columns={
+        'animal_type': 'animal',
+        'symptom_1': 'Symptom1',
+        'symptom_2': 'Symptom2',
+        'symptom_3': 'Symptom3',
+        'medicine': 'Remedy1',
+        'care_1': 'Remedy2',
+        'care_2': 'Remedy3'
+    }, inplace=True)
+
+    # Add missing vet_required column if it doesn't exist
+    if 'vet_required' not in df.columns:
+        df['vet_required'] = "Yes"
+        
+    # Ensure recovery_days is string
+    df['recovery_days'] = df['recovery_days'].astype(str)
+
+    # Normalize dataset columns
     df.columns = [c.strip() for c in df.columns]
 except Exception as e:
     print(f"Error loading dataset: {e}")
-    # Initialize with expected columns to prevent KeyError later if file fails
+    # Initialize with expected columns
     df = pd.DataFrame(columns=["animal", "symptoms", "disease", "recovery_days", "remedy", "vet_required", "Remedy1", "Remedy2", "Remedy3", "Symptom1", "Symptom2", "Symptom3"])
 
 # Tamil to English Symptom Mapping
@@ -62,13 +85,13 @@ tamil_to_english_symptoms = {
     "காது மெழுகு": "dark wax",
     "சிவத்தல்": "redness",
     "முடி உதிர்தல்": "hair loss",
-    "சொறி": "scratching", # Additional term for scratching
+    "சொறி": "scratching",
     "சீழ்": "pus", 
     "தீவனம் எடுக்கவில்லை": "loss of appetite",
     "சாப்பிடவில்லை": "loss of appetite",
     "கழிச்சல்": "loose motion", 
     "பேதி": "loose motion",
-    # Tanglish / Phonetic Mappings
+    # Tanglish / Phonetic
     "kaaichal": "fever",
     "kaaitsel": "fever",
     "fever": "fever",
@@ -77,13 +100,37 @@ tamil_to_english_symptoms = {
     "bedhi": "loose motion",
     "sorvu": "drowsiness",
     "veekkam": "swelling",
-    "vali": "pain"
+    "vali": "pain",
+    "mooku": "nasal discharge",
+    "mooku oluguthal": "nasal discharge",
+    "mudi": "hair loss",
+    "mudi udhirthal": "hair loss",
+    "sali": "nasal discharge",
+    "cough": "cough",
+    "irumal": "cough",
+    "thalai aattuthal": "head shaking",
+    "kan": "redness",
+    "kavalai": "lethargy",
+    "sappidala": "loss of appetite",
+    "theevanam": "loss of appetite",
+    "weight": "weakness",
+    "eda": "weakness"
 }
 
 # English to Tamil Translations
 english_to_tamil_output = {
+    # Diseases
+    "Viral Fever": "வைரஸ் காய்ச்சல் (Viral Fever)",
+    "Digestive Disorder": "செரிமானக் கோளாறு (Digestive Disorder)",
+    "Eye Infection": "கண் நோய் (Eye Infection)",
+    "Nutritional Deficiency": "சத்து குறைபாடு (Nutritional Deficiency)",
+    "Fever Infection": "காய்ச்சல் தொற்று (Fever Infection)",
+    "Bacterial Infection": "பாக்டீரியா தொற்று (Bacterial Infection)",
+    "Foot Rot": "கால் அழுகல் நோய் (Foot Rot)",
+    "Parasitic Worms": "குடல் புழுக்கள் (Parasitic Worms)",
+    "Respiratory Infection": "சுவாசத் தொற்று (Respiratory Infection)",
+    "Skin Allergy": "தோல் ஒவ்வாமை (Skin Allergy)",
     "Foot and Mouth Disease": "கிளம்பு நோய் (Foot and Mouth Disease)",
-    "Diarrhea": "கழிச்சல் (Diarrhea)",
     "Mastitis": "மடி நோய் (Mastitis)",
     "PPR": "ஆட்டு வாலை நோய் (PPR)",
     "Newcastle Disease": "வெள்ளை கழிச்சல் (Newcastle Disease)",
@@ -91,8 +138,27 @@ english_to_tamil_output = {
     "Ear Mites": "காது பூச்சி (Ear Mites)",
     "Bloat": "வயிறு உப்புசம் (Bloat)",
     "Skin Infection": "தோல் நோய் (Skin Infection)",
-    "Yes": "ஆம்",
-    "No": "இல்லை",
+
+    # Medicines
+    "Supportive IV fluids": "சலைன் (IV திரவம்)",
+    "Digestive tonic": "செரிமான டானிக்",
+    "Eye drops": "கண் சொட்டு மருந்து",
+    "Vitamin supplement": "வைட்டமின் சத்து மருந்து",
+    "Antipyretic injection": "காய்ச்சல் ஊசி",
+    "Broad spectrum antibiotic": "நுண்ணுயிர் எதிர்ப்பு மருந்து (Antibiotic)",
+    "Hoof antibiotic spray": "கால் குளம்பு ஸ்ப்ரே",
+    "Deworming medicine": "குடற்புழு நீக்க மருந்து",
+    "Antibiotic syrup": "நுண்ணுயிர் எதிர்ப்பு சிரப் (Antibiotic Syrup)",
+    "Antihistamine cream": "ஒவ்வாமை களிம்பு (Cream)",
+    "Ear drops": "காது சொட்டு மருந்து",
+    "Oil drench": "எண்ணெய் மருந்து",
+    "Medicated bath": "மருந்து குளியல்",
+    "Oral rehydration": "வாய்வழி நீரேற்றம்",
+    "Anti-emetics": "வாந்தி தடுப்பு மருந்து",
+
+    # Care / Instructions
+    "Regular vaccination": "முறையான தடுப்பூசி போடவும்",
+    "Keep shelter clean": "இருப்பிடத்தை சுத்தமாக வைத்திருக்கவும்",
     "Separate the infected animal": "பாதிக்கப்பட்ட விலங்கை தனிமைப்படுத்தவும்",
     "Wash mouth with KmnO4": "வாயை பொட்டாசியம் பர்மாங்கனேட் கொண்டு கழுவவும்",
     "Give soft food": "மென்மையான உணவு கொடுக்கவும்",
@@ -118,299 +184,242 @@ english_to_tamil_output = {
     "Bath with medicated shampoo": "மருந்து ஷாம்பு போட்டு குளிப்பாட்டவும்",
     "Apply ointment": "களிம்பு பூசவும்",
     "Keep dry": "உலர்ந்த நிலையில் வைக்கவும்",
-    "Antibiotics": "நுண்ணுயிர் எதிர்ப்பிகள் (Antibiotics)",
-    "Vaccination": "தடுப்பூசி (Vaccination)",
-    "Supportive care": "ஆதரவு சிகிச்சை (Supportive care)",
-    "Ear drops": "காது சொட்டு மருந்து (Ear drops)",
-    "Oil drench": "எண்ணெய் மருந்து (Oil drench)",
-    "Medicated bath": "மருந்து குளியல் (Medicated bath)",
     "Isolation and vaccination": "தனிமைப்படுத்துதல் மற்றும் தடுப்பூசி",
-    "Oral rehydration": "வாய்வழி நீரேற்றம்",
-    "Anti-emetics": "வாந்தி தடுப்பு மருந்து",
     "Clean udder": "மடியை சுத்தம் செய்யவும்",
     "Milk completely": "முழுமையாக பால் கறக்கவும்",
-    "Consult vet": "மருத்துவரை அணுகவும்"
+    "Consult vet": "மருத்துவரை அணுகவும்",
+    
+    # General
+    "Yes": "ஆம்",
+    "No": "இல்லை"
 }
+
+# Helper function
+def generate_audio_response(text):
+    try:
+        audio_dir = os.path.join(current_dir, "audio")
+        os.makedirs(audio_dir, exist_ok=True)
+        filename = f"response_{uuid.uuid4()}.mp3"
+        path = os.path.join(audio_dir, filename)
+        tts = gTTS(text=text, lang='ta')
+        tts.save(path)
+        return f"/audio/{filename}"
+    except Exception as e:
+        print(f"TTS Error: {e}")
+        return None
 
 def translate_to_tamil(text):
     return english_to_tamil_output.get(text, text)
 
-# Load Whisper Model (Upgraded to 'small' for better accuracy)
-model = whisper.load_model("small")
-
-class PredictionRequest(BaseModel):
-    animal: str
-    symptoms_tamil: str
+@app.post("/text-to-speech/")
+async def text_to_speech(text: str = Form(...)):
+    url = generate_audio_response(text)
+    if url:
+        return {"audio_url": url}
+    return {"error": "TTS failed"}
 
 @app.post("/predict/")
-async def predict(animal: str = Form(None), symptoms_tamil: str = Form(None), file: UploadFile = File(None)):
+async def predict(
+    animal: str = Form(...), 
+    breed: str = Form(None),
+    age: str = Form(None),
+    gender: str = Form(None),
+    symptom1: str = Form(None),
+    symptom2: str = Form(None),
+    symptom3: str = Form(None),
+    file: UploadFile = File(None)
+):
+    transcribed_text = ""
     
-    # print(f"DEBUG: Received animal={animal}, symptoms_tamil={symptoms_tamil}, file={file.filename if file else 'None'}")
-    
-    detected_lang = None
-    transcribed_text = None
-
-    # Handle Audio File Upload
-    if file:
-        try:
-            temp_filename = f"temp_{uuid.uuid4()}.webm"
-            temp_path = os.path.join(current_dir, "audio", temp_filename)
-            os.makedirs(os.path.dirname(temp_path), exist_ok=True)
-            
-            with open(temp_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-            
-            # Transcribe with Whisper (Auto-detect language)
-            # Added initial_prompt to guide the model towards medical/animal context and Tamil language
-            result = model.transcribe(
-                temp_path, 
-                initial_prompt="This is a medical report about animal diseases. Symptoms: Fever, Cough, Limping, Milk reduction. Tamil and English mixed."
-            ) 
-            transcribed_text = result["text"]
-            detected_lang = result["language"]
-            
-            # Safe print for debugging
+    try:
+        # 0. Process Audio if present
+        if file:
             try:
-                print(f"DEBUG: Detected Language: {detected_lang}, Text: {transcribed_text.encode('utf-8', 'ignore').decode('utf-8')}")
-            except Exception:
-                print("DEBUG: Detected Language and Text (encoding error suppressed)")
-            
-            # Cleanup temp file
-            os.remove(temp_path)
-            
-        except Exception as e:
-            print(f"Whisper Error: {e}")
-            return {"error": f"Audio processing failed: {str(e)}"}
-
-    if not animal:
-         print(f"DEBUG: Missing data. Animal: {animal}")
-         return {"error": f"Missing animal data. Received: Animal='{animal}'"}
-
-    # 1. Identify Symptoms based on Language using Fuzzy Matching
-    detected_symptoms_english = []
-    
-    input_text = transcribed_text if file else symptoms_tamil
-    
-    if not input_text:
-        return {"error": "No audio or text input provided"}
-
-    # Detect language for text input if not already detected
-    if not detected_lang:
-        if any(ord(c) > 127 for c in input_text): 
-            detected_lang = 'ta'
-        else:
-            detected_lang = 'en'
-            
-    # try:
-    #     print(f"Processing Text: {input_text} (Lang: {detected_lang})")
-    # except:
-    #     pass
-
-    # Combined Logic for Mixed Language Support
-    # We check for BOTH Tamil/Tanglish keys AND English values in the input text regardless of detected language.
-    # This handles:
-    # 1. Pure Tamil (Tamil script keys)
-    # 2. Tanglish (Latin script keys like 'kaaitsel')
-    # 3. English (English values)
-    # 4. Mixed input
-    
-    input_text_lower = str(input_text).lower()
-    
-    # 1. Check ALL keys in tamil_to_english_symptoms (includes Tamil script and Tanglish)
-    for key in tamil_to_english_symptoms:
-        # Check lowercased key against lowercased input for Latin/Tanglish
-        # Tamil script doesn't change with .lower() much but it's safe
-        if str(key).lower() in input_text_lower:
-             eng_symptom = tamil_to_english_symptoms[key]
-             if eng_symptom not in detected_symptoms_english:
-                 detected_symptoms_english.append(eng_symptom)
-
-    # 2. Check English values (reverse lookup not needed as we have the values)
-    english_symptoms = list(set(tamil_to_english_symptoms.values()))
-    for symptom in english_symptoms:
-        if str(symptom).lower() in input_text_lower:
-            if symptom not in detected_symptoms_english:
-                detected_symptoms_english.append(symptom)
-    
-    # 3. Fuzzy match individual words
-    # Split input into words
-    words = input_text_lower.split()
-    all_keys = list(tamil_to_english_symptoms.keys())
-    
-    print(f"DEBUG: Detected Symptoms (English): {detected_symptoms_english}")
-    
-    for word in words:
-        # Check against keys (Tamil + Tanglish)
-        matches_keys = difflib.get_close_matches(word, [k.lower() for k in all_keys], n=1, cutoff=0.8)
-        if matches_keys:
-             # Find original key (restore case if needed, but dictionary keys are mostly lower or Tamil)
-             # We need to map back to English value
-             # match is the lowercased key. Find the key in dictionary that matches.
-             matched_key_lower = matches_keys[0]
-             # Inefficient lookup but dataset is small
-             for original_key in all_keys:
-                 if original_key.lower() == matched_key_lower:
-                     symptom_en = tamil_to_english_symptoms[original_key]
-                     if symptom_en not in detected_symptoms_english:
-                         detected_symptoms_english.append(symptom_en)
-                     break
+                temp_filename = f"temp_{uuid.uuid4()}.webm"
+                temp_path = os.path.join(current_dir, "audio", temp_filename)
+                os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+                
+                with open(temp_path, "wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
+                    
+                # Transcribe
+                r = sr.Recognizer()
+                
+                # Convert WebM to WAV using pydub
+                wav_path = temp_path.replace(".webm", ".wav")
+                
+                try:
+                    from pydub import AudioSegment
+                    audio = AudioSegment.from_file(temp_path)
+                    audio.export(wav_path, format="wav")
+                    
+                    with sr.AudioFile(wav_path) as source:
+                        audio_data = r.record(source)
+                        try:
+                            # Recognize Tamil
+                            transcribed_text = r.recognize_google(audio_data, language="ta-IN")
+                            print(f"DEBUG: Transcribed Text: {transcribed_text}")
+                        except sr.UnknownValueError:
+                            print("DEBUG: Speech Recognition could not understand audio")
+                            transcribed_text = "(Not understood / புரியவில்லை)"
+                        except sr.RequestError as e:
+                            print(f"DEBUG: Could not request results from Google Speech Recognition service; {e}")
+                            transcribed_text = "(API Error / பிழை)"
+                except Exception as e:
+                     print(f"Conversion/Transcription Error: {e}")
+                     transcribed_text = f"(Audio Error: {str(e)})"
+                finally:
+                    # Cleanup
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                    if os.path.exists(wav_path):
+                        os.remove(wav_path)
+                
+            except Exception as e:
+                print(f"Audio processing error: {e}")
+                transcribed_text = f"(Audio Error: {str(e)})"
         
-        # Check against English values
-        matches_vals = difflib.get_close_matches(word, [s.lower() for s in english_symptoms], n=1, cutoff=0.8)
-        if matches_vals:
-             matched_val_lower = matches_vals[0]
-             for s in english_symptoms:
-                 if s.lower() == matched_val_lower:
-                     if s not in detected_symptoms_english:
-                         detected_symptoms_english.append(s)
-                     break
+        # 1. Map Tamil inputs to English
+        s1_en = tamil_to_english_symptoms.get(symptom1, symptom1) if symptom1 else None
+        s2_en = tamil_to_english_symptoms.get(symptom2, symptom2) if symptom2 else None
+        s3_en = tamil_to_english_symptoms.get(symptom3, symptom3) if symptom3 else None
+        
+        detected_symptoms = [s for s in [s1_en, s2_en, s3_en] if s]
 
-    # Helper function to generate audio
-    def generate_audio_response(text):
-        try:
-            audio_dir = os.path.join(current_dir, "audio")
-            os.makedirs(audio_dir, exist_ok=True)
-            filename = f"response_{uuid.uuid4()}.mp3"
-            path = os.path.join(audio_dir, filename)
-            tts = gTTS(text=text, lang='ta')
-            tts.save(path)
-            return f"/audio/{filename}"
-        except Exception as e:
-            print(f"TTS Error: {e}")
-            return None
+        # 2. Filter dataset
+        animal_df = df[df['animal'].str.lower() == animal.lower()]
 
-    if not detected_symptoms_english:
-        error_msg_ta = "அறிகுறிகள் எதுவும் கண்டறியப்படவில்லை"
-        error_msg_en = "No symptoms detected"
-        if input_text:
-             error_msg_en += f" (Input: {input_text})"
+        if breed:
+            filtered_by_breed = animal_df[animal_df['breed'].astype(str).str.lower() == breed.lower()]
+            if not filtered_by_breed.empty:
+                animal_df = filtered_by_breed
+                
+        if age:
+             filtered_by_age = animal_df[animal_df['age'].astype(str) == str(age)]
+             if not filtered_by_age.empty:
+                 animal_df = filtered_by_age
+                 
+        if gender:
+            filtered_by_gender = animal_df[animal_df['gender'].str.lower() == gender.lower()]
+            if not filtered_by_gender.empty:
+                animal_df = filtered_by_gender
+
+        if animal_df.empty:
+            error_msg_ta = "இந்த விலங்கு தரவுத்தளத்தில் இல்லை"
+            audio_url = generate_audio_response(error_msg_ta)
+            return {
+                 "transcribed_text": transcribed_text,
+                 "error": f"{error_msg_ta} (Animal/Details not found)",
+                 "disease": "தெரியவில்லை",
+                 "remedies": [],
+                 "recovery_days": "-",
+                 "vet_required": "-",
+                 "audio_url": audio_url
+            }
+
+        # 3. Match symptoms
+        best_match = None
+        max_score = -1
+
+        for index, row in animal_df.iterrows():
+            score = 0
+            row_symptoms = [
+                str(row.get('Symptom1', '')).lower(), 
+                str(row.get('Symptom2', '')).lower(), 
+                str(row.get('Symptom3', '')).lower()
+            ]
+            
+            for input_symptom in detected_symptoms:
+                for db_symptom in row_symptoms:
+                    if input_symptom.lower() in db_symptom:
+                        score += 1
+            
+            if score > max_score:
+                max_score = score
+                best_match = row
+
+        if best_match is None or max_score == 0:
+             error_msg_ta = "அறிகுறிகள் பொருந்தவில்லை"
+             audio_url = generate_audio_response(error_msg_ta)
              
-        audio_url = generate_audio_response(error_msg_ta)
+             return {
+                "transcribed_text": transcribed_text,
+                "error": f"{error_msg_ta} (No matching disease found)",
+                "disease": "தெரியவில்லை",
+                "remedies": [],
+                "recovery_days": "-",
+                "vet_required": "-",
+                "audio_url": audio_url
+            }
+
+        # 4. Format Output in Tamil
+        disease_en = best_match['disease']
+        disease_tamil = translate_to_tamil(disease_en)
         
+        # Extract Medicine
+        medicine = str(best_match.get('Remedy1', ''))
+        medicine_ta = translate_to_tamil(medicine) if medicine != 'nan' else "-"
+        
+        # Extract Care
+        care1 = str(best_match.get('Remedy2', ''))
+        care2 = str(best_match.get('Remedy3', ''))
+        
+        care_items = []
+        if care1 != 'nan' and care1: care_items.append(translate_to_tamil(care1))
+        if care2 != 'nan' and care2: care_items.append(translate_to_tamil(care2))
+        
+        care_ta = ", ".join(care_items) if care_items else "-"
+        
+        recovery_days = str(best_match['recovery_days'])
+        vet_required = translate_to_tamil(best_match.get('vet_required', '-'))
+
+        # Construct explicit Text
+        result_text = f"உங்கள் விலங்கிற்கு இருக்கும் நோய்: {disease_tamil}. "
+        result_text += f"மருந்து (Medicine): {medicine_ta}. "
+        result_text += f"பராமரிப்பு (Care): {care_ta}. "
+        result_text += f"முழுமையாக குணமாகும் நாட்கள்: {recovery_days}. "
+        result_text += f"மருத்துவர் தேவை: {vet_required}."
+
+        # 5. Generate Audio
+        audio_url = generate_audio_response(result_text)
+
         return {
-            "error": f"{error_msg_ta} ({error_msg_en})",
-            "disease": "தெரியவில்லை",
-            "remedies": [],
-            "recovery_days": "-",
-            "vet_required": "-",
-            "transcribed_text": input_text,
+            "transcribed_text": transcribed_text,
+            "disease": disease_tamil,
+            "medicine": medicine_ta,
+            "care": care_items,
+            "recovery_days": recovery_days,
+            "vet_required": vet_required,
+            "full_text": result_text,
             "audio_url": audio_url
         }
 
-    # 2. Filter dataset by animal
-    animal_df = df[df['animal'].str.lower() == animal.lower()]
-
-    if animal_df.empty:
-        error_msg_ta = "இந்த விலங்கு தரவுத்தளத்தில் இல்லை"
-        audio_url = generate_audio_response(error_msg_ta)
-        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"CRITICAL SERVER ERROR: {e}")
         return {
-             "error": f"{error_msg_ta} (Animal not found)",
-             "disease": "தெரியவில்லை",
-             "remedies": [],
+             "transcribed_text": transcribed_text,
+             "error": f"Server Error: {str(e)}",
+             "disease": "Error",
+             "medicine": "-",
+             "care": [],
              "recovery_days": "-",
-             "vet_required": "-"
+             "vet_required": "-",
+             "audio_url": None
         }
-
-    # 3. Match symptoms
-    best_match = None
-    max_score = -1
-
-    for index, row in animal_df.iterrows():
-        score = 0
-        row_symptoms = [str(row.get(f'Symptom{i}')).lower() for i in range(1, 4)]
-        
-        for mapped_symptom in detected_symptoms_english:
-            for row_symptom in row_symptoms:
-                if mapped_symptom.lower() in row_symptom: #'in' handles partial matches within symptom string
-                    score += 1
-
-
-        
-        if int(score) > int(max_score):
-            max_score = score
-            best_match = row
-
-    if best_match is None or max_score == 0:
-         error_msg_ta = "பொருத்தமான நோய் கண்டறியப்படவில்லை"
-         audio_url = generate_audio_response(error_msg_ta)
-         
-         return {
-            "error": f"{error_msg_ta} (No matching disease found)",
-            "disease": "தெரியவில்லை",
-            "remedies": [],
-            "recovery_days": "-",
-            "vet_required": "-",
-            "transcribed_text": input_text,
-            "audio_url": audio_url
-        }
-
-    # 4. Format Output in Tamil
-    disease_tamil = translate_to_tamil(best_match['disease'])
-    remedies = [
-        translate_to_tamil(best_match.get('Remedy1', '')),
-        translate_to_tamil(best_match.get('Remedy2', '')),
-        translate_to_tamil(best_match.get('Remedy3', ''))
-    ]
-    remedies = [r for r in remedies if str(r) != 'nan' and r] 
-    
-    recovery_days = str(best_match['recovery_days'])
-    vet_required = translate_to_tamil(best_match['vet_required'])
-
-    result_text = f"""
-    உங்கள் விலங்கிற்கு இருக்கும் நோய்: {disease_tamil}
-    பரிகாரங்கள்:
-    {', '.join(remedies)}
-    முழுமையாக குணமாகும் நாட்கள்: {recovery_days}
-    மருத்துவர் தேவை: {vet_required}
-    """
-
-    # 5. Generate Audio
-    audio_url = generate_audio_response(result_text)
-
-    return {
-        "disease": disease_tamil,
-        "remedies": remedies,
-        "recovery_days": recovery_days,
-        "vet_required": vet_required,
-        "full_text": result_text,
-        "audio_url": audio_url,
-
-        "transcribed_text": input_text
-    }
-
-@app.get("/instruction-audio")
-async def get_instruction_audio():
-    text = "உங்கள் விலங்கின் இனம், வயது மற்றும் காணப்படும் அறிகுறிகளை தெளிவாக சொல்லுங்கள். முடிந்ததும் நிறுத்து பொத்தானை அழுத்துங்கள்."
-    audio_dir = os.path.join(current_dir, "audio")
-    os.makedirs(audio_dir, exist_ok=True)
-    filename = "instruction.mp3"
-    file_path = os.path.join(audio_dir, filename)
-    
-    if not os.path.exists(file_path):
-        try:
-            tts = gTTS(text=text, lang='ta')
-            tts.save(file_path)
-        except Exception as e:
-            return {"error": str(e)}
-            
-    return FileResponse(file_path)
 
 from fastapi.responses import FileResponse
 
-@app.get("/audio/{filename}")
-async def get_audio(filename: str):
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    audio_dir = os.path.join(current_dir, "audio")
-    file_path = os.path.join(audio_dir, filename)
-    if os.path.exists(file_path):
-        return FileResponse(file_path)
-    return {"error": "File not found"}
+# Serve audio files
+audio_dir = os.path.join(current_dir, "audio")
+os.makedirs(audio_dir, exist_ok=True)
+app.mount("/audio", StaticFiles(directory=audio_dir), name="audio")
 
-# Serve frontend files for convenience
-# Mount the frontend directory to serve static files (HTML, CSS, JS)
+# Serve frontend files
 frontend_dir = os.path.join(os.path.dirname(current_dir), "frontend")
 app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+
 
 if __name__ == "__main__":
     import uvicorn

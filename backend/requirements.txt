@@ -6,3 +6,4 @@ whisper
 gtts
 python-multipart
 requests
+pydub
